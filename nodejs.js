@@ -3,21 +3,43 @@ import fs from "fs";
 import path from "path";
 import { fileURLToPath } from "url";
 import QRCode from "qrcode";
+import inquirer from "inquirer";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const app = express();
-const PORT = 3000;
+const PORT = process.env.PORT || 3000;
+
+// رابط السيرفر العام على Render
+const BASE_URL = "https://qrcode-1-p8ud.onrender.com";
 
 // قاعدة بيانات بسيطة
-const secretKey = "123456"; // الرمز السري
+let secretKey = ""; // الرمز السري سيتم إدخاله من المستخدم
 const filePath = path.join(__dirname, "data.txt"); // الملف الذي فيه البيانات
 const id = "data-access-001"; // ID فريد للملف
 
-// إنشاء QR Code يحتوي على رابط الوصول
-QRCode.toFile("qrcode.png", `http://10.3.47.14:${PORT}/secure/${id}`, err => {
-  if (err) throw err;
-  console.log("✅ QR Code تم إنشاؤه بنجاح في qrcode.png");
+
+// اطلب كلمة المرور من المستخدم قبل بدء السيرفر
+inquirer.prompt([
+  {
+    type: "password",
+    message: "أدخل كلمة المرور التي تريد استخدامها:",
+    name: "password",
+    mask: "*"
+  }
+]).then((answers) => {
+  secretKey = answers.password;
+
+  // إنشاء QR Code يحتوي على رابط الوصول
+  QRCode.toFile("qrcode.png", `${BASE_URL}/secure/${id}`, err => {
+    if (err) throw err;
+    console.log("✅ QR Code تم إنشاؤه بنجاح في qrcode.png");
+  });
+
+  // بدء السيرفر بعد إدخال كلمة المرور
+  app.listen(PORT, "0.0.0.0", () => {
+    console.log(`✅ الخادم يعمل على ${BASE_URL}`);
+  });
 });
 
 // عرض صفحة فيها prompt عند زيارة الرابط
@@ -26,7 +48,6 @@ app.get("/secure/:id", (req, res) => {
     return res.send("❌ هذا الرابط غير صالح");
   }
 
-  // HTML بسيط فيه prompt و fetch
   res.send(`
     <script>
       const password = prompt("أدخل الرمز السري للوصول إلى البيانات:");
@@ -36,7 +57,7 @@ app.get("/secure/:id", (req, res) => {
         .then(data => {
           document.body.innerHTML = "<pre>" + data + "</pre>";
         })
-        .catch(err => {
+        .catch(() => {
           document.body.innerHTML = "❌ حدث خطأ.";
         });
     </script>
@@ -57,6 +78,4 @@ app.get("/data", (req, res) => {
   });
 });
 
-app.listen(PORT, () => {
-  console.log(`✅ الخادم يعمل على http://localhost:${PORT}`);
-});
+// ...existing code...
