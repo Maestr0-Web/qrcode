@@ -3,55 +3,32 @@ import fs from "fs";
 import path from "path";
 import { fileURLToPath } from "url";
 import QRCode from "qrcode";
-import inquirer from "inquirer";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const app = express();
 const PORT = process.env.PORT || 3000;
 
-// رابط السيرفر العام على Render
-const BASE_URL = "https://qrcode-1-p8ud.onrender.com";
+// نأخذ البيانات من متغيرات البيئة
+const secretKey = process.env.QR_SECRET || "123456";
+const qrFileName = process.env.QR_NAME || "qrcode";
+const filePath = path.join(__dirname, "data.txt");
+const id = "data-access-001";
 
-// قاعدة بيانات بسيطة
-let secretKey = ""; // الرمز السري سيتم إدخاله من المستخدم
-const filePath = path.join(__dirname, "data.txt"); // الملف الذي فيه البيانات
-const id = "data-access-001"; // ID فريد للملف
-
-
-// اطلب كلمة المرور من المستخدم قبل بدء السيرفر
-inquirer.prompt([
-  {
-    type: "password",
-    message: "أدخل كلمة المرور التي تريد استخدامها:",
-    name: "password",
-    mask: "*"
-  }
-]).then((answers) => {
-  secretKey = answers.password;
-
-  // إنشاء QR Code يحتوي على رابط الوصول
-  QRCode.toFile("qrcode.png", `${BASE_URL}/secure/${id}`, err => {
-    if (err) throw err;
-    console.log("✅ QR Code تم إنشاؤه بنجاح في qrcode.png");
-  });
-
-  // بدء السيرفر بعد إدخال كلمة المرور
-  app.listen(PORT, "0.0.0.0", () => {
-    console.log(`✅ الخادم يعمل على ${BASE_URL}`);
-  });
+// إنشاء QR Code بالرابط
+QRCode.toFile(`${qrFileName}.png`, `https://qrcode-1-p8ud.onrender.com/secure/${id}`, err => {
+  if (err) throw err;
+  console.log(`✅ تم إنشاء الكود في ${qrFileName}.png`);
 });
 
-// عرض صفحة فيها prompt عند زيارة الرابط
+// صفحة إدخال كلمة المرور
 app.get("/secure/:id", (req, res) => {
   if (req.params.id !== id) {
     return res.send("❌ هذا الرابط غير صالح");
   }
-
   res.send(`
     <script>
       const password = prompt("أدخل الرمز السري للوصول إلى البيانات:");
-
       fetch('/data?key=' + password)
         .then(res => res.text())
         .then(data => {
@@ -64,18 +41,23 @@ app.get("/secure/:id", (req, res) => {
   `);
 });
 
-// تحقق من الرمز وأرجع البيانات
+// إرسال البيانات عند تطابق كلمة السر
 app.get("/data", (req, res) => {
   const key = req.query.key;
-
   if (key !== secretKey) {
     return res.status(403).send("❌ الرمز غير صحيح.");
   }
-
   fs.readFile(filePath, "utf8", (err, data) => {
-    if (err) return res.status(500).send("حدث خطأ في قراءة الملف.");
+    if (err) return res.status(500).send("❌ خطأ في قراءة البيانات.");
     res.send(data);
   });
 });
 
-// ...existing code...
+app.listen(PORT, () => {
+  console.log(`✅ الخادم يعمل على http://localhost:${PORT}`);
+});
+// حفظ البيانات في ملف
+fs.writeFile(filePath, "هذه بيانات سرية", err => {
+  if (err) throw err;
+  console.log(`✅ تم حفظ البيانات في ${filePath}`);
+});     
